@@ -213,32 +213,14 @@ tt_authorize(TTDEV *d, uint32_t code, bool new_code)
     case 2:
         // Android software, from @drkingpo's log, updated by @Grimler91 for 1.7.64
         magic_bytes = BARRAY( 0x01, 0x19, 0, 0, 0x01, 0x17, 0, 0 );
-        if (new_code) {
-            att_wrreq(d->fd, 0x0083, &auth_one, sizeof auth_one); // (v1 + 0x50)
-            att_wrreq(d->fd, 0x0088, &auth_one, sizeof auth_one);
-            att_wrreq(d->fd, 0x0073, &auth_one, sizeof auth_one); // (v1 + 0x4d)
-            att_wrreq(d->fd, 0x007c, &auth_one, sizeof auth_one); // (v1 + 0x4d)
-            att_wrreq(d->fd, 0x0076, &auth_one, sizeof auth_one); // (v1 + 0x4d)
-            att_wrreq(d->fd, 0x0079, &auth_one, sizeof auth_one); // (v1 + 0x4d)
-            att_wrreq(d->fd, d->h->magic, magic_bytes, sizeof magic_bytes); // (v1 + 0x50)
-            att_wrreq(d->fd, d->h->passcode, &bcode, sizeof bcode); //  (v1 + 0x50)
-        } else {
-            // based on btsnoop_hci.log from @drkingpo
-            att_wrreq(d->fd, 0x0083, &auth_one, sizeof auth_one); // (v1 + 0x50)
-            att_wrreq(d->fd, d->h->magic, magic_bytes, sizeof magic_bytes); // (v1 + 0x50)
-            att_wrreq(d->fd, 0x0073, &auth_one, sizeof auth_one); // (v1 + 0x4d)
-            att_wrreq(d->fd, d->h->passcode, &bcode, sizeof bcode); // (v1 + 0x50)
-
-            int res = EXPECT_uint8(d, d->h->passcode, 1);
-            if (res < 0)
-                return res;
-
-            att_wrreq(d->fd, 0x007c, &auth_one, sizeof auth_one); // (v1 + 0x4d)
-            att_wrreq(d->fd, 0x0076, &auth_one, sizeof auth_one); // (v1 + 0x4d)
-            att_wrreq(d->fd, 0x0079, &auth_one, sizeof auth_one); // (v1 + 0x4d)
-            att_wrreq(d->fd, d->h->magic, magic_bytes, sizeof magic_bytes); // (v1 + 0x50)
-            att_wrreq(d->fd, d->h->passcode, &bcode, sizeof bcode); //  (v1 + 0x50)
-        }
+        att_wrreq(d->fd, 0x0083, &auth_one, sizeof auth_one); // (v1 + 0x50)
+        att_wrreq(d->fd, 0x0088, &auth_one, sizeof auth_one);
+        att_wrreq(d->fd, 0x0073, &auth_one, sizeof auth_one); // (v1 + 0x4d)
+        att_wrreq(d->fd, 0x007c, &auth_one, sizeof auth_one); // (v1 + 0x4d)
+        att_wrreq(d->fd, 0x0076, &auth_one, sizeof auth_one); // (v1 + 0x4d)
+        att_wrreq(d->fd, 0x0079, &auth_one, sizeof auth_one); // (v1 + 0x4d)
+        att_wrreq(d->fd, d->h->magic, magic_bytes, sizeof magic_bytes); // (v1 + 0x50)
+        att_wrreq(d->fd, d->h->passcode, &bcode, sizeof bcode); //  (v1 + 0x50)
         return EXPECT_uint8(d, d->h->passcode, 1);
     }
     return -2;
