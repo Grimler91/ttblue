@@ -1,6 +1,7 @@
 #!/usr/bin/python2
 # -*- coding: utf-8 -*-
-import btle, struct, collections, random, time, sys
+from bluepy import btle
+import struct, collections, random, time, sys
 import requests
 import cStringIO as StringIO
 from binascii import hexlify, unhexlify
