@@ -185,30 +185,13 @@ tt_authorize(TTDEV *d, uint32_t code, bool new_code)
     case 1:
         // TomTom MySports 2.1.13-a3eb49a for Android
         magic_bytes = BARRAY( 0x01, 0x16, 0, 0, 0x01, 0x29, 0, 0 );
-        if (new_code) {
-            att_write(d->fd, 0x0033, &auth_one, sizeof auth_one);
-            att_write(d->fd, 0x0026, &auth_one, sizeof auth_one);
-            att_write(d->fd, 0x002f, &auth_one, sizeof auth_one);
-            att_write(d->fd, 0x0029, &auth_one, sizeof auth_one);
-            att_write(d->fd, 0x002c, &auth_one, sizeof auth_one);
-            att_wrreq(d->fd, d->h->magic, magic_bytes, 8);
-            att_wrreq(d->fd, d->h->passcode, &bcode, sizeof bcode);
-        } else {
-            att_write(d->fd, 0x0033, &auth_one, sizeof auth_one);
-            att_wrreq(d->fd, d->h->magic, magic_bytes, sizeof magic_bytes);
-            att_write(d->fd, 0x0026, &auth_one, sizeof auth_one);
-            att_wrreq(d->fd, d->h->passcode, &bcode, sizeof bcode);
-
-            int res = EXPECT_uint8(d, d->h->passcode, 1);
-            if (res < 0)
-                return res;
-
-            att_write(d->fd, 0x002f, &auth_one, sizeof auth_one);
-            att_write(d->fd, 0x0029, &auth_one, sizeof auth_one);
-            att_write(d->fd, 0x002c, &auth_one, sizeof auth_one);
-            att_wrreq(d->fd, d->h->magic, magic_bytes, 8);
-            att_wrreq(d->fd, d->h->passcode, &bcode, sizeof bcode);
-        }
+        att_write(d->fd, 0x0033, &auth_one, sizeof auth_one);
+        att_write(d->fd, 0x0026, &auth_one, sizeof auth_one);
+        att_write(d->fd, 0x002f, &auth_one, sizeof auth_one);
+        att_write(d->fd, 0x0029, &auth_one, sizeof auth_one);
+        att_write(d->fd, 0x002c, &auth_one, sizeof auth_one);
+        att_wrreq(d->fd, d->h->magic, magic_bytes, 8);
+        att_wrreq(d->fd, d->h->passcode, &bcode, sizeof bcode);
         return EXPECT_uint8(d, d->h->passcode, 1);
     case 2:
         // Android software, from @drkingpo's log, updated by @Grimler91 for 1.7.64
