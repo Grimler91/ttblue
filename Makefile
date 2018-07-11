@@ -1,5 +1,6 @@
 override CFLAGS += --std=c99 -O2 -Wall -Wtype-limits -Wno-missing-braces
 LDFLAGS += -lcurl -lbluetooth -lpopt
+PREFIX ?= /usr/local
 
 SRC = ttblue.c \
       bbatt.c \
@@ -16,6 +17,9 @@ HEADERS = bbatt.h \
 OUTPUT = ttblue
 
 all: $(OUTPUT)
+
+install: $(OUTPUT)
+	install $(OUTPUT) $(PREFIX)/bin/
 
 setcap: $(OUTPUT)
 	@echo 'This will give ttblue permissions to create raw'
