@@ -158,11 +158,11 @@ tt_check_device_version(TTDEV *d, bool warning)
 /****************************************************************************/
 
 int
-tt_authorize(TTDEV *d, uint32_t code)
+tt_authorize(TTDEV *d, char code[6])
 {
     // authorize with the device
     const uint16_t auth_one = btohs(0x0001);
-    uint32_t bcode = htobl(code);
+    uint32_t bcode = htobl(atoi(code));
     const uint8_t *magic_bytes;
     magic_bytes = BARRAY( 0x01, 0x19, 0, 0, 0x01, 0x17, 0, 0 );
 
