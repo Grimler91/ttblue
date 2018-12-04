@@ -173,7 +173,7 @@ tt_authorize(TTDEV *d, char code[6])
         att_wrreq(d->fd, 0x002f, &auth_one, sizeof auth_one);
         att_wrreq(d->fd, 0x0029, &auth_one, sizeof auth_one);
         att_wrreq(d->fd, 0x002c, &auth_one, sizeof auth_one);
-	break;
+        break;
     case 2:
         att_wrreq(d->fd, 0x0083, &auth_one, sizeof auth_one); // (v1 + 0x50)
         att_wrreq(d->fd, 0x0088, &auth_one, sizeof auth_one);
@@ -181,7 +181,7 @@ tt_authorize(TTDEV *d, char code[6])
         att_wrreq(d->fd, 0x007c, &auth_one, sizeof auth_one); // (v1 + 0x4d)
         att_wrreq(d->fd, 0x0076, &auth_one, sizeof auth_one); // (v1 + 0x4d)
         att_wrreq(d->fd, 0x0079, &auth_one, sizeof auth_one); // (v1 + 0x4d)
-	break;
+        break;
     default:
         return -2;
     }
