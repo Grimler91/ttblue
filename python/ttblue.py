@@ -8,6 +8,49 @@ from binascii import hexlify, unhexlify
 from datetime import datetime
 from crc16_modbus import crc16_modbus as tt_crc16_streamer, _crc16_modbus as tt_crc16
 
+v1_handles = {
+    'ppcp'       : 0x0b,
+    'passcode'   : 0x32,
+    'magic'      : 0x35,
+    'cmd_status' : 0x25,
+    'length'     : 0x28,
+    'transfer'   : 0x2b,
+    'check'      : 0x2e
+}
+
+v2_handles = {
+    'ppcp'       : 0x00,
+    'passcode'   : 0x82,
+    'magic'      : 0x85,
+    'cmd_status' : 0x72,
+    'length'     : 0x75,
+    'transfer'   : 0x78,
+    'check'      : 0x7b
+}
+
+v1_files = {
+    'hostname'       : 0x00020002,
+    'preference'     : 0x00f20000,
+    'manifest'       : 0x00850000,
+    'activity_start' : 0x00910000,
+    'gps_status'     : 0x00020001,
+    'quickgps'       : 0x00010100
+};
+
+v2_files = {
+    'hostname'       : 0x00020003,
+    'preference'     : 0x00f20000,
+    'manifest'       : 0x00850000,
+    'activity_start' : 0x00910000,
+    'gps_status'     : 0x00020001,
+    'quickgps'       : 0x00010100
+};
+
+magic_bytes = bytearray((0x01, 0x19, 0, 0, 0x01, 0x17, 0, 0))
+
+handle = v2_handles
+file = v2_files
+
 class MyDelegate(btle.DefaultDelegate):
     __slots__ = ('handle','data','idata')
     def __init__(self):
@@ -36,9 +79,9 @@ def rda(p, handle=None, data=None, idata=None, timeout=1.0):
 
 def tt_send_command(p, cmdno):
     for tries in range(0,10):
-        p.wr(0x25, cmdno, True)
+        p.wr(handle['cmd_status'], cmdno, True)
         h, d, id = rda(p)
-        if h==0x25 and id==1:
+        if h==handle['cmd_status'] and id==1:
             return tries
         else:
             print "command %02x%02x%02x%02x failed %d times with %s, will retry" % (cmdno[0], cmdno[1], cmdno[2], cmdno[3], tries+1, ((hnone(h),repr(d),hnone(id))))
@@ -51,7 +94,7 @@ def tt_read_file(p, fileno, outf, limit=None, debug=False):
     cmdno = bytearray((1, (fileno>>16)&0xff, fileno&0xff, (fileno>>8)&0xff))
 
     tt_send_command(p, cmdno)
-    l = rda(p, 0x28).idata      # 0x28 = length in/out
+    l = rda(p, handle['length']).idata      # 0x28 = length in/out
 
     counter = 0
     startat = time.time()
@@ -60,9 +103,9 @@ def tt_read_file(p, fileno, outf, limit=None, debug=False):
         # read up to 256*20-2 data bytes in 20B chunks
         end = min(l, ii+256*20-2)
         for jj in range(ii, end, 20):
-            d = rda(p, 0x2b).data
+            d = rda(p, handle['transfer']).data
             if (end-jj-len(d)) in (-1, 0):
-                d += rda(p, 0x2b).data # tack on CRC16 straggler byte(s)
+                d += rda(p, handle['transfer']).data # tack on CRC16 straggler byte(s)
 
             outf.write( d[ : min(end-jj,20) ] )
             checker.update(d)
@@ -75,11 +118,11 @@ def tt_read_file(p, fileno, outf, limit=None, debug=False):
             raise AssertionError, checker.hexdigest()
         checker.reset()
         counter += 1
-        p.wr(0x2e, struct.pack('<L', counter), False)
+        p.wr(handle['check'], struct.pack('<L', counter), False)
         if debug:
             print "%d: read %d/%d bytes so far (%d/sec)" % (counter, end, l, end // (time.time()-startat))
 
-    rda(p, 0x25, idata=0)
+    rda(p, handle['cmd_status'], idata=0)
     return end
 
 def tt_write_file(p, fileno, buf, expect_end=True, debug=False):
@@ -89,7 +132,7 @@ def tt_write_file(p, fileno, buf, expect_end=True, debug=False):
 
     tt_send_command(p, cmdno)
     l = len(buf)
-    p.wr(0x28, struct.pack('<L', len(buf)))     # 0x28 = length in/out
+    p.wr(handle['length'], struct.pack('<L', len(buf)))     # 0x28 = length in/out
 
     counter = 0
     startat = time.time()
@@ -103,8 +146,8 @@ def tt_write_file(p, fileno, buf, expect_end=True, debug=False):
 
             if jj+20>=end:
                 out += struct.pack('<H', checker.digest())
-            p.wr(0x2b, out[:20])
-            if len(out)>20: p.wr(0x2b, out[20:])
+            p.wr(handle['transfer'], out[:20])
+            if len(out)>20: p.wr(handle['transfer'], out[20:])
 
             if debug>1:
                 print "%04x: %s %s" % (jj, hexlify(out), repr(out))
@@ -117,7 +160,7 @@ def tt_write_file(p, fileno, buf, expect_end=True, debug=False):
         if debug:
             print "%d: wrote %d/%d bytes so far (%d/sec)" % (counter, end, l, end // (time.time()-startat))
 
-    rda(p, 0x25, idata=0)
+    rda(p, handle['cmd_status'], idata=0)
     return end
 
 def tt_list_sub_files(p, fileno):
@@ -129,8 +172,8 @@ def tt_list_sub_files(p, fileno):
     buf = bytearray()
     while True:
         h, d, id = rda(p)
-        if h==0x2b: buf.extend(d)
-        elif h==0x25 and id==0: break
+        if h==handle['transfer']: buf.extend(d)
+        elif h==handle['cmd_status'] and id==0: break
         else: raise AssertionError, ("0x%02x"%h,d,id)
 
     # first uint16 is length, subsequent are file numbers offset from base
@@ -147,8 +190,8 @@ def tt_delete_file(p, fileno):
     buf = bytearray()
     while True:
         h, d, id = rda(p, timeout=20)
-        if h==0x2b: buf.extend(d)
-        elif h==0x25 and id==0: break
+        if h==handle['transfer']: buf.extend(d)
+        elif h==handle['cmd_status'] and id==0: break
         else: raise AssertionError, (hnone(h),d,hnone(id))
 
     return buf
@@ -193,23 +236,23 @@ try:
         code = int(sys.argv[2])
         newpair = False
     code = struct.pack('<L', code)
-
-    if newpair:
-        # Android app uses this version RIGHT after pairing... but is it needed?
+    if 0:
         p.wr(0x33, '\x01\0')
         p.wr(0x26, '\x01\0')
         p.wr(0x2f, '\x01\0')
         p.wr(0x29, '\x01\0')
         p.wr(0x2c, '\x01\0')
-        p.wr(0x35, '\x01\x13\0\0\x01\x12\0\0', True)
-        p.wr(0x32, code, True)
-        response = rda(p, 0x32).idata
-    else:
-        p.wr(0x33, '\x01\0')
-        p.wr(0x35, '\x01\x13\0\0\x01\x12\0\0', True)
-        p.wr(0x26, '\x01\0')
-        p.wr(0x32, code, True) # <-- pairing security code?
-        response = rda(p, 0x32).idata
+    if 1:
+        p.wr(0x83, '\x01\0')
+        p.wr(0x88, '\x01\0')
+        p.wr(0x73, '\x01\0')
+        p.wr(0x7c, '\x01\0')
+        p.wr(0x76, '\x01\0')
+        p.wr(0x79, '\x01\0')
+
+    p.wr(handle['magic'], magic_bytes)
+    p.wr(handle['passcode'], '\x01\0')
+    response = rda(p, handle['passcode']).idata
 
     if response == 1:
         print "Paired using code %s." % hexlify(code)
@@ -218,24 +261,24 @@ try:
 
 
     if 1:
-        tt_delete_file(p, 0x00020002)
-        tt_write_file(p, 0x00020002, 'Syncing…')
+        tt_delete_file(p, file['hostname'])
+        tt_write_file(p, file['hostname'], 'Syncing…')
 
     if 1:
-        print "Reading XML preferences (file 0x00f20000) ..."
+        print "Reading XML preferences (file file['preference']) ..."
         with open('preferences.xml', 'wb') as f:
-            tt_read_file(p, 0x00f20000, f)
+            tt_read_file(p, file['preference'], f)
             print "Got %d bytes" % f.tell()
 
     if 1:
         print "Checking activity file status..."
-        files = tt_list_sub_files(p, 0x00910000)
+        files = tt_list_sub_files(p, file['activity_start'])
         print "Got %d activities: %s" % (len(files), files)
 
         filetime = datetime.now().strftime("%Y%m%d_%H%M%S")
         for ii,fileno in enumerate(files):
-            tt_delete_file(p, 0x00020002)
-            tt_write_file(p, 0x00020002, 'Activity %d/%d…' % (ii+1, len(files)))
+            tt_delete_file(p, file['hostname'])
+            tt_write_file(p, file['hostname'], 'Activity %d/%d…' % (ii+1, len(files)))
 
             print "Saving activity file 0x%08x.ttbin..." % fileno
             with open('%08x_%s.ttbin' % ( fileno, filetime), 'wb') as f:
@@ -243,8 +286,8 @@ try:
                 print "  got %d bytes." % f.tell()
             print "  saved to %s" % f.name
 
-            tt_delete_file(p, 0x00020002)
-            tt_write_file(p, 0x00020002, '%d/%d synced.' % (ii+1, len(files)))
+            tt_delete_file(p, file['hostname'])
+            tt_write_file(p, file['hostname'], '%d/%d synced.' % (ii+1, len(files)))
 
             print "Deleting activity file 0x%08x..." % fileno
             print tt_delete_file(p, fileno)
@@ -252,17 +295,17 @@ try:
     if 1:
         gqf = requests.get('https://gpsquickfix.services.tomtom.com/fitness/sifgps.f2p3enc.ee?timestamp=%d' % time.time()).content
         print "Sending QuickGPSFix update (%d bytes)..." % len(gqf)
-        tt_delete_file(p, 0x00020002)
-        tt_write_file(p, 0x00020002, 'GPSQuickFix…')
-        tt_delete_file(p, 0x00010100)
-        tt_write_file(p, 0x00010100, gqf, debug=True, expect_end=True)
+        tt_delete_file(p, file['hostname'])
+        tt_write_file(p, file['hostname'], 'GPSQuickFix…')
+        tt_delete_file(p, file['quickgps'])
+        tt_write_file(p, file['quickgps'], gqf, debug=True, expect_end=True)
 
-        p.wr(0x25, bytearray((0x05, 0x01, 0x00, 0x01))) # magic?
+        p.wr(handle['cmd_status'], bytearray((0x05, 0x01, 0x00, 0x01))) # magic?
 #        p.disconnect()
 
     if 1:
-        tt_delete_file(p, 0x00020002)
-        tt_write_file(p, 0x00020002, 'ttblue, yo!')
+        tt_delete_file(p, file['hostname'])
+        tt_write_file(p, file['hostname'], 'ttblue, yo!')
 except KeyboardInterrupt:
     pass
 finally:
