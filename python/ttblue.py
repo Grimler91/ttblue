@@ -1,9 +1,9 @@
-#!/usr/bin/python2
+#!/usr/bin/python3
 # -*- coding: utf-8 -*-
 from bluepy import btle
 import struct, collections, random, time, sys
 import requests
-import cStringIO as StringIO
+import io as StringIO
 from binascii import hexlify, unhexlify
 from datetime import datetime
 from crc16_modbus import crc16_modbus as tt_crc16_streamer, _crc16_modbus as tt_crc16
@@ -79,7 +79,7 @@ def rda(p, handle=None, data=None, idata=None, timeout=1.0):
     p.waitForNotifications(timeout)
     h,d,id = p.delegate.handle, p.delegate.data, p.delegate.idata
     if handle not in (None, h) or data not in (None, d) or idata not in (None, id):
-        raise AssertionError, "expected (%s,%s,%s) got (%s,%s,%s)" % (hnone(handle), repr(data), hnone(idata), hnone(h), repr(d), hnone(id))
+        raise AssertionError("expected (%s,%s,%s) got (%s,%s,%s)" % (hnone(handle), repr(data), hnone(idata), hnone(h), repr(d), hnone(id)))
     return h_d_id(h,d,id)
 
 ########################################
@@ -91,7 +91,7 @@ def tt_send_command(p, cmdno):
         if h==handle['cmd_status'] and id==1:
             return tries
         else:
-            print "command %02x%02x%02x%02x failed %d times with %s, will retry" % (cmdno[0], cmdno[1], cmdno[2], cmdno[3], tries+1, ((hnone(h),repr(d),hnone(id))))
+            print("command %02x%02x%02x%02x failed %d times with %s, will retry" % (cmdno[0], cmdno[1], cmdno[2], cmdno[3], tries+1, ((hnone(h),repr(d),hnone(id)))))
             time.sleep(1)
     return None
 
@@ -118,16 +118,16 @@ def tt_read_file(p, fileno, outf, limit=None, debug=False):
             checker.update(d)
 
             if debug>1:
-                print "%04x: %s %s" % (jj, hexlify(d), repr(d))
+                print("%04x: %s %s" % (jj, hexlify(d), repr(d)))
 
         # check CRC16 and ack
         if checker.digest()!=0:
-            raise AssertionError, checker.hexdigest()
+            raise AssertionError(checker.hexdigest())
         checker.reset()
         counter += 1
         p.wr(handle['check'], struct.pack('<L', counter), False)
         if debug:
-            print "%d: read %d/%d bytes so far (%d/sec)" % (counter, end, l, end // (time.time()-startat))
+            print("%d: read %d/%d bytes so far (%d/sec)" % (counter, end, l, end // (time.time()-startat)))
 
     rda(p, handle['cmd_status'], idata=0)
     return end
@@ -157,7 +157,7 @@ def tt_write_file(p, fileno, buf, expect_end=True, debug=False):
             if len(out)>20: p.wr(handle['transfer'], out[20:])
 
             if debug>1:
-                print "%04x: %s %s" % (jj, hexlify(out), repr(out))
+                print("%04x: %s %s" % (jj, hexlify(out), repr(out)))
 
         # check CRC16 and ack
         checker.reset()
@@ -165,7 +165,7 @@ def tt_write_file(p, fileno, buf, expect_end=True, debug=False):
         if end<l or expect_end:
             rda(p, 0x2e, idata=counter, timeout=20)
         if debug:
-            print "%d: wrote %d/%d bytes so far (%d/sec)" % (counter, end, l, end // (time.time()-startat))
+            print("%d: wrote %d/%d bytes so far (%d/sec)" % (counter, end, l, end // (time.time()-startat)))
 
     rda(p, handle['cmd_status'], idata=0)
     return end
@@ -181,7 +181,7 @@ def tt_list_sub_files(p, fileno):
         h, d, id = rda(p)
         if h==handle['transfer']: buf.extend(d)
         elif h==handle['cmd_status'] and id==0: break
-        else: raise AssertionError, ("0x%02x"%h,d,id)
+        else: raise AssertionError("0x%02x"%h,d,id)
 
     # first uint16 is length, subsequent are file numbers offset from base
     subfiles = struct.unpack('<%dH'%(len(buf)/2), buf)
@@ -199,14 +199,14 @@ def tt_delete_file(p, fileno):
         h, d, id = rda(p, timeout=20)
         if h==handle['transfer']: buf.extend(d)
         elif h==handle['cmd_status'] and id==0: break
-        else: raise AssertionError, (hnone(h),d,hnone(id))
+        else: raise AssertionError(hnone(h),d,hnone(id))
 
     return buf
 
 ########################################
 
 if len(sys.argv)!=3:
-    print '''Need two arguments:
+    print('''Need two arguments:
           ttblue.py <bluetooth-address> <pairing-code>
     OR    ttblue.py <bluetooth-address> pair
 
@@ -214,7 +214,7 @@ if len(sys.argv)!=3:
     of your TomTom GPS (E4:04:39:__:__:__) and
     pairing-code is either the previously established
     code used to pair a phone, or the string "pair"
-    to create a new pairing.'''
+    to create a new pairing.''')
     raise SystemExit
 
 def setup(addr):
@@ -223,7 +223,7 @@ def setup(addr):
         try:
             p=btle.Peripheral(addr, btle.ADDR_TYPE_PUBLIC)
         except btle.BTLEException as e:
-            print e
+            print(e)
             time.sleep(1)
     d = MyDelegate()
     p.setDelegate(d)
@@ -237,7 +237,7 @@ try:
     # codes that are listed in file 0x0002000F should work
 
     if sys.argv[2]=="pair":
-        code = int(raw_input("Code? "))
+        code = int(input("Code? "))
         newpair = True
     else:
         code = int(sys.argv[2])
@@ -262,9 +262,9 @@ try:
     response = rda(p, handle['passcode']).idata
 
     if response == 1:
-        print "Paired using code %s." % hexlify(code)
+        print("Paired using code %s." % hexlify(code))
     else:
-       raise RuntimeError, "Failed to pair with provided code"
+       raise RuntimeError("Failed to pair with provided code")
 
 
     if 1:
@@ -272,36 +272,36 @@ try:
         tt_write_file(p, file['hostname'], 'Syncing…')
 
     if 1:
-        print "Reading XML preferences (file file['preference']) ..."
+        print("Reading XML preferences (file file['preference']) ...")
         with open('preferences.xml', 'wb') as f:
             tt_read_file(p, file['preference'], f)
-            print "Got %d bytes" % f.tell()
+            print("Got %d bytes" % f.tell())
 
     if 1:
-        print "Checking activity file status..."
+        print("Checking activity file status...")
         files = tt_list_sub_files(p, file['activity_start'])
-        print "Got %d activities: %s" % (len(files), files)
+        print("Got %d activities: %s" % (len(files), files))
 
         filetime = datetime.now().strftime("%Y%m%d_%H%M%S")
         for ii,fileno in enumerate(files):
             tt_delete_file(p, file['hostname'])
             tt_write_file(p, file['hostname'], 'Activity %d/%d…' % (ii+1, len(files)))
 
-            print "Saving activity file 0x%08x.ttbin..." % fileno
+            print("Saving activity file 0x%08x.ttbin..." % fileno)
             with open('%08x_%s.ttbin' % ( fileno, filetime), 'wb') as f:
                 tt_read_file(p, fileno, f, debug=True)
-                print "  got %d bytes." % f.tell()
-            print "  saved to %s" % f.name
+                print("  got %d bytes." % f.tell())
+            print("  saved to %s" % f.name)
 
             tt_delete_file(p, file['hostname'])
             tt_write_file(p, file['hostname'], '%d/%d synced.' % (ii+1, len(files)))
 
-            print "Deleting activity file 0x%08x..." % fileno
-            print tt_delete_file(p, fileno)
+            print("Deleting activity file 0x%08x..." % fileno)
+            print(tt_delete_file(p, fileno))
 
     if 1:
         gqf = requests.get('https://gpsquickfix.services.tomtom.com/fitness/sifgps.f2p3enc.ee?timestamp=%d' % time.time()).content
-        print "Sending QuickGPSFix update (%d bytes)..." % len(gqf)
+        print("Sending QuickGPSFix update (%d bytes)..." % len(gqf))
         tt_delete_file(p, file['hostname'])
         tt_write_file(p, file['hostname'], 'GPSQuickFix…')
         tt_delete_file(p, file['quickgps'])
