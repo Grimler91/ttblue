@@ -221,7 +221,7 @@ def setup(addr):
     p = None
     while p is None:
         try:
-            p=btle.Peripheral(addr, btle.ADDR_TYPE_PUBLIC)
+            p=btle.Peripheral(addr, btle.ADDR_TYPE_RANDOM)
         except btle.BTLEException as e:
             print(e)
             time.sleep(1)
