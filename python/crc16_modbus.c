@@ -1,9 +1,9 @@
 /**
  * Python crc16_modus
- * version 0.1
+ * version 0.2
  *
  * Copyright (C) 2014 by Daniel Lenski <lenski@umd.edu>
- * Time-stamp: <2008-09-19 00:18:51 dlenski>
+ * Copyright (C) 2020 by Henrik Grimler <henrik@grimler.se>
  *
  * Released under the terms of the
  * GNU General Public License version 3 or later
@@ -14,6 +14,10 @@
 
 #include <stdlib.h>
 #include <stdint.h>
+
+struct module_state {
+    PyObject *error;
+};
 
 static uint
 _crc16_modbus(uint8_t *buf, size_t len, uint start)
@@ -40,10 +44,12 @@ _py_crc16_modbus(PyObject *self, PyObject *arg)
     Py_buffer buf = {.buf=NULL};
     if (PyObject_GetBuffer(arg, &buf, PyBUF_SIMPLE)<0)
         return NULL;
-    return PyInt_FromLong( _crc16_modbus(buf.buf, buf.len, 0xffff) );
+    return PyLong_FromLong( _crc16_modbus(buf.buf, buf.len, 0xffff) );
 }
 
 //////////////////////////////////////////////////////////////////////
+
+#define GETSTATE(m) ((struct module_state*)PyModule_GetState(m))
 
 typedef struct {
     PyObject_HEAD
@@ -59,9 +65,10 @@ CRC16m_init(CRC16m *self, PyObject *args, PyObject *kwlist)
     if(!PyArg_ParseTuple(args, "|s*:__init__", &buf))
         return NULL;
     self->digest = 0xFFFF;
-    if(buf.buf!=NULL)
+    if(buf.buf!=NULL) {
         self->digest = _crc16_modbus(buf.buf, buf.len, self->digest);
         PyBuffer_Release(&buf);
+    }
 
     return NULL;
 }
@@ -70,7 +77,7 @@ CRC16m_init(CRC16m *self, PyObject *args, PyObject *kwlist)
 static PyObject *
 CRC16m_digest(CRC16m *self)
 {
-    return PyInt_FromLong(self->digest);
+    return PyLong_FromLong( self->digest );
 }
 
 // crc16m.reset()
@@ -90,7 +97,7 @@ CRC16m_hexdigest(CRC16m *self)
 {
     char str[5];
     sprintf(str, "%04x", self->digest);
-    return PyString_FromString(str);
+    return PyUnicode_FromString(str);
 }
 
 // crc16m.copy()
@@ -130,28 +137,12 @@ static PyMemberDef CRC16m_members[] = {
 };
 
 static PyTypeObject CRC16m_pytype = {
-    PyObject_HEAD_INIT(NULL)
-    0,                           /*ob_size*/
-    "crc16_modbus.crc16_modbus", /*tp_name*/
-    sizeof(CRC16m),              /*tp_basicsize*/
-    0,                           /*tp_itemsize*/
-    0,                           /*tp_dealloc*/
-    0,                           /*tp_print*/
-    0,                           /*tp_getattr*/
-    0,                           /*tp_setattr*/
-    0,                           /*tp_compare*/
-    0,                           /*tp_repr*/
-    0,                           /*tp_as_number*/
-    0,                           /*tp_as_sequence*/
-    0,                           /*tp_as_mapping*/
-    0,                           /*tp_hash */
-    0,                           /*tp_call*/
-    0,                           /*tp_str*/
-    0,                           /*tp_getattro*/
-    0,                           /*tp_setattro*/
-    0,                           /*tp_as_buffer*/
-    Py_TPFLAGS_DEFAULT,          /*tp_flags*/
-    "hashlib-compatible object to compute crc16_modbus", /* tp_doc */
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "crc16_modbus.crc16_modbus",
+    .tp_doc = "hashlib-compatible object to compute crc16_modbus", /* tp_doc */
+    .tp_basicsize = sizeof(CRC16m),
+    .tp_itemsize = 0,
+    .tp_flags = Py_TPFLAGS_DEFAULT,
     .tp_methods = CRC16m_methods,
     .tp_members = CRC16m_members,
     .tp_init = (initproc)CRC16m_init,
@@ -174,19 +165,43 @@ PyDoc_STRVAR(module__doc__,
 #define PyMODINIT_FUNC void
 #endif
 
+static int module_traverse(PyObject *m, visitproc visit, void *arg) {
+    Py_VISIT(GETSTATE(m)->error);
+    return 0;
+}
+
+static int module_clear(PyObject *m) {
+    Py_CLEAR(GETSTATE(m)->error);
+    return 0;
+}
+
+static struct PyModuleDef moduledef = {
+        PyModuleDef_HEAD_INIT,
+        "crc16_modbus",
+        module__doc__,
+        sizeof(struct module_state),
+        module_methods,
+        NULL,
+        module_traverse,
+        module_clear,
+        NULL
+};
+
 PyMODINIT_FUNC
-initcrc16_modbus(void)
+PyInit_crc16_modbus(void)
 {
     if (PyType_Ready(&CRC16m_pytype) < 0)
-        return;
-    PyDict_SetItemString(CRC16m_pytype.tp_dict, "name", PyString_FromString("crc16_modbus"));
-    PyDict_SetItemString(CRC16m_pytype.tp_dict, "digest_size", PyInt_FromLong(4));
-    PyDict_SetItemString(CRC16m_pytype.tp_dict, "block_size", PyInt_FromLong(1));
+        return NULL;
+    PyDict_SetItemString(CRC16m_pytype.tp_dict, "name", PyUnicode_FromString("crc16_modbus"));
+    PyDict_SetItemString(CRC16m_pytype.tp_dict, "digest_size", PyLong_FromLong(4));
+    PyDict_SetItemString(CRC16m_pytype.tp_dict, "block_size", PyLong_FromLong(1));
 
-    PyObject *mod = Py_InitModule3("crc16_modbus", module_methods, module__doc__);
-    if (!mod)
-        return;
+    PyObject *mod = PyModule_Create(&moduledef);
+    if ( mod == NULL )
+        return NULL;
+    //struct module_state *st = GETSTATE(mod);
 
     Py_INCREF(&CRC16m_pytype);
     PyModule_AddObject(mod, "crc16_modbus", (PyObject *)&CRC16m_pytype);
-}
+    return mod;
+};
